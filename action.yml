@@ -30,10 +30,11 @@ runs:
         source cloud-formation-utils.sh
 
         # check if the stack exists
-        cf_delete_if_bad_state $stackName
+        cf_delete_if_bad_state $stackName $awsRegion
 
         echo Deploying CloudFormation template
         if ! aws cloudformation deploy --template-file "$templateFilePath" \
+                --region $awsRegion
                 --capabilities CAPABILITY_IAM \
                 --stack-name $stackName \
                 --tags $tags
