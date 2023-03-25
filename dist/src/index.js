@@ -22,10 +22,14 @@ var __importStar = (this && this.__importStar) || function (mod) {
     __setModuleDefault(result, mod);
     return result;
 };
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 const core = __importStar(require("@actions/core"));
 const client_cloudformation_1 = require("@aws-sdk/client-cloudformation");
 const JsonUtils_1 = require("./JsonUtils");
+const fs_1 = __importDefault(require("fs"));
 function stringOrFail(input, failedMessage) {
     if (input) {
         return input;
@@ -159,6 +163,18 @@ async function deleteStackIfBadStatus(client, stackName, timeoutSeconds, succssf
         "UPDATE_ROLLBACK_COMPLETE",
         "UPDATE_ROLLBACK_FAILED"
     ];
+    let templateBody;
+    await fs_1.default.readFile(templateFilePath, { encoding: "utf-8" }, (err, data) => {
+        if (err) {
+            core.setFailed(`Unable to read template file ${templateFilePath}`);
+        }
+        else {
+            templateBody = data;
+        }
+    });
+    if (!templateBody) {
+        return;
+    }
     const client = new client_cloudformation_1.CloudFormationClient({ region /* , credentials: { accessKeyId, secretAccessKey } */ });
     let currentStackStatus;
     try {
@@ -174,7 +190,7 @@ async function deleteStackIfBadStatus(client, stackName, timeoutSeconds, succssf
         command = new client_cloudformation_1.UpdateStackCommand({
             StackName: stackName,
             Capabilities: ["CAPABILITY_IAM"],
-            TemplateURL: `file://${templateFilePath}`,
+            TemplateBody: templateBody,
             Tags: tags,
             Parameters: parameters // [{ParameterKey: "param1", ParameterValue: "value1"}]
         });
@@ -196,7 +212,7 @@ async function deleteStackIfBadStatus(client, stackName, timeoutSeconds, succssf
         command = new client_cloudformation_1.CreateStackCommand({
             StackName: stackName,
             Capabilities: ["CAPABILITY_IAM"],
-            TemplateURL: `file://${templateFilePath}`,
+            TemplateBody: templateBody,
             Tags: tags,
             Parameters: parameters, // [{ParameterKey: "param1", ParameterValue: "value1"}]
         });

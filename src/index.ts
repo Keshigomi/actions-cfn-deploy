@@ -1,6 +1,7 @@
 import * as core from "@actions/core";
 import { CloudFormationClient, CreateStackCommand, DeleteStackCommand, DescribeStacksCommand, DescribeStacksCommandOutput, Parameter, Tag, UpdateStackCommand } from "@aws-sdk/client-cloudformation";
 import { JsonUtils } from "./JsonUtils";
+import fs from "fs";
 
 function stringOrFail(input: string|undefined, failedMessage?: string): string {
     if (input) {
@@ -167,6 +168,19 @@ async function deleteStackIfBadStatus(client: CloudFormationClient, stackName: s
         "UPDATE_ROLLBACK_COMPLETE",
         "UPDATE_ROLLBACK_FAILED"
     ];
+
+    let templateBody: string|undefined;
+    await fs.readFile(templateFilePath, {encoding: "utf-8"}, (err, data) => {
+        if (err) {
+            core.setFailed(`Unable to read template file ${templateFilePath}`);
+        } else {
+            templateBody = data;
+        }
+    });
+    if (!templateBody) {
+        return;
+    }
+
     const client = new CloudFormationClient({ region/* , credentials: { accessKeyId, secretAccessKey } */});
 
     let currentStackStatus: string|undefined;
@@ -183,7 +197,7 @@ async function deleteStackIfBadStatus(client: CloudFormationClient, stackName: s
         command = new UpdateStackCommand({
             StackName: stackName,
             Capabilities: ["CAPABILITY_IAM"],
-            TemplateURL: `file://${templateFilePath}`,
+            TemplateBody: templateBody,
             Tags: tags as Tag[], // [{Key: "key1", Value: "value1"}]
             Parameters: parameters as Parameter[] // [{ParameterKey: "param1", ParameterValue: "value1"}]
         });
@@ -204,7 +218,7 @@ async function deleteStackIfBadStatus(client: CloudFormationClient, stackName: s
         command = new CreateStackCommand({
             StackName: stackName,
             Capabilities: ["CAPABILITY_IAM"],
-            TemplateURL: `file://${templateFilePath}`,
+            TemplateBody: templateBody,
             Tags: tags as Tag[], // [{Key: "key1", Value: "value1"}]
             Parameters: parameters as Parameter[], // [{ParameterKey: "param1", ParameterValue: "value1"}]
          });
