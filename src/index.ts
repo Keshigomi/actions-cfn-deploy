@@ -143,8 +143,8 @@ async function deleteStackIfBadStatus(client: CloudFormationClient, stackName: s
 (async (): Promise<void> => {
 
     const region = stringOrFail(core.getInput("awsRegion"), "Missing awsRegion value");
-    const accessKeyId = stringOrFail(process.env.ACCESS_KEY_ID, "Missing ACCESS_KEY_ID value");
-    const secretAccessKey = stringOrFail(process.env.SECRET_ACCESS_KEY, "Missing SECRET_ACCESS_KEY value");
+    // const accessKeyId = stringOrFail(process.env.ACCESS_KEY_ID, "Missing ACCESS_KEY_ID value");
+    // const secretAccessKey = stringOrFail(process.env.SECRET_ACCESS_KEY, "Missing SECRET_ACCESS_KEY value");
 
     const stackName = stringOrFail(core.getInput("stackName"), "Missing stackName input");
     const timeoutSeconds = +core.getInput("timeoutSeconds");
@@ -167,7 +167,7 @@ async function deleteStackIfBadStatus(client: CloudFormationClient, stackName: s
         "UPDATE_ROLLBACK_COMPLETE",
         "UPDATE_ROLLBACK_FAILED"
     ];
-    const client = new CloudFormationClient({ region, credentials: { accessKeyId, secretAccessKey }});
+    const client = new CloudFormationClient({ region/* , credentials: { accessKeyId, secretAccessKey } */});
 
     let currentStackStatus: string|undefined;
     try {
