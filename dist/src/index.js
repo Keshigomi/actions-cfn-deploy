@@ -1,9 +1,29 @@
 "use strict";
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || function (mod) {
+    if (mod && mod.__esModule) return mod;
+    var result = {};
+    if (mod != null) for (var k in mod) if (k !== "default" && Object.prototype.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
+    __setModuleDefault(result, mod);
+    return result;
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-const core_1 = __importDefault(require("@actions/core"));
+const core = __importStar(require("@actions/core"));
 const client_cloudformation_1 = require("@aws-sdk/client-cloudformation");
 const JsonUtils_1 = require("./JsonUtils");
 function stringOrFail(input, failedMessage) {
@@ -11,21 +31,10 @@ function stringOrFail(input, failedMessage) {
         return input;
     }
     else {
-        core_1.default.setFailed(failedMessage || "Uknown error");
+        core.setFailed(failedMessage || "Uknown error");
         return "";
     }
 }
-const finalStatuses = [
-    "CREATE_COMPLETE",
-    "CREATE_FAILED",
-    "DELETE_COMPLETE",
-    "DELETE_FAILED",
-    "ROLLBACK_COMPLETE",
-    "ROLLBACK_FAILED",
-    "UPDATE_COMPLETE",
-    "UPDATE_ROLLBACK_COMPLETE",
-    "UPDATE_ROLLBACK_FAILED"
-];
 async function getStackStatus(client, stackName) {
     var _a;
     const command = new client_cloudformation_1.DescribeStacksCommand({ StackName: stackName });
@@ -37,10 +46,10 @@ async function getStackStatus(client, stackName) {
  * @param client The CloudFormation client.
  * @param stackName The name of the stack to wait for status on.
  * @param timeoutSeconds The timeout after which the function will exit regardless of result. Use 0 to never time out.
- * @param statusesToMatch List of statuses to match.
+ * @param statusesToMatch List of statuses to match.`
  * @returns a state of the stack, one of "StackNotFound", "Timeout", or "Success"
  */
-async function waitForStackStatus(client, stackName, timeoutSeconds, statusesToMatch = finalStatuses) {
+async function waitForStackStatus(client, stackName, timeoutSeconds, statusesToMatch) {
     const startMillis = Date.now();
     do {
         let status = undefined;
@@ -126,18 +135,18 @@ async function deleteStackIfBadStatus(client, stackName, timeoutSeconds, succssf
 //     return result;
 // }
 (async () => {
-    const region = stringOrFail(core_1.default.getInput("awsRegion"), "Missing awsRegion value");
+    const region = stringOrFail(core.getInput("awsRegion"), "Missing awsRegion value");
     const accessKeyId = stringOrFail(process.env.ACCESS_KEY_ID, "Missing ACCESS_KEY_ID value");
     const secretAccessKey = stringOrFail(process.env.SECRET_ACCESS_KEY, "Missing SECRET_ACCESS_KEY value");
-    const stackName = stringOrFail(core_1.default.getInput("stackName"), "Missing stackName input");
-    const timeoutSeconds = +core_1.default.getInput("timeoutSeconds");
+    const stackName = stringOrFail(core.getInput("stackName"), "Missing stackName input");
+    const timeoutSeconds = +core.getInput("timeoutSeconds");
     if (isNaN(timeoutSeconds)) {
-        core_1.default.setFailed("timeoutSeconds must be a number equal to 0 or greater.");
+        core.setFailed("timeoutSeconds must be a number equal to 0 or greater.");
         return;
     }
-    const templateFilePath = stringOrFail(core_1.default.getInput("templateFilePath"), "Missing templateFilePath input");
-    const tags = JsonUtils_1.JsonUtils.toJSONArray(core_1.default.getMultilineInput("tags"), "Key", "Value", "=");
-    const parameters = JsonUtils_1.JsonUtils.toJSONArray(core_1.default.getMultilineInput("parameterOverrides"), "ParameterKey", "ParameterValue", "=");
+    const templateFilePath = stringOrFail(core.getInput("templateFilePath"), "Missing templateFilePath input");
+    const tags = JsonUtils_1.JsonUtils.toJSONArray(core.getMultilineInput("tags"), "Key", "Value", "=");
+    const parameters = JsonUtils_1.JsonUtils.toJSONArray(core.getMultilineInput("parameterOverrides"), "ParameterKey", "ParameterValue", "=");
     const successStackStatuses = ["CREATE_COMPLETE", "ROLLBACK_COMPLETE", "UPDATE_COMPLETE"];
     const deleteOnStackStatuses = [
         // "CREATE_COMPLETE",
@@ -156,7 +165,7 @@ async function deleteStackIfBadStatus(client, stackName, timeoutSeconds, succssf
         currentStackStatus = await getStackStatus(client, stackName);
     }
     catch (e) {
-        core_1.default.setFailed(`Could not get status of stack ${stackName}`);
+        core.setFailed(`Could not get status of stack ${stackName}`);
         return;
     }
     let command;
@@ -174,11 +183,11 @@ async function deleteStackIfBadStatus(client, stackName, timeoutSeconds, succssf
         // stack is not in a successful status. Delete it before deploying.
         const deleteResult = await deleteStackIfBadStatus(client, stackName, timeoutSeconds, deleteOnStackStatuses);
         if (deleteResult.state === "Timeout") {
-            core_1.default.setFailed(`Timed out while deleting stack ${stackName}`);
+            core.setFailed(`Timed out while deleting stack ${stackName}`);
             return;
         }
         if (deleteResult.state === "Error") {
-            core_1.default.setFailed(`Errored while deleting stack ${stackName}: ${deleteResult.error}`);
+            core.setFailed(`Errored while deleting stack ${stackName}: ${deleteResult.error}`);
             return;
         }
     }

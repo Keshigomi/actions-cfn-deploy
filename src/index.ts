@@ -1,4 +1,4 @@
-import {getInput, getMultilineInput, setFailed} from "@actions/core";
+import * as core from "@actions/core";
 import { CloudFormationClient, CreateStackCommand, DeleteStackCommand, DescribeStacksCommand, DescribeStacksCommandOutput, Parameter, Tag, UpdateStackCommand } from "@aws-sdk/client-cloudformation";
 import { JsonUtils } from "./JsonUtils";
 
@@ -6,7 +6,7 @@ function stringOrFail(input: string|undefined, failedMessage?: string): string {
     if (input) {
         return input;
     } else {
-        setFailed(failedMessage || "Uknown error");
+        core.setFailed(failedMessage || "Uknown error");
         return "";
     }
 }
@@ -142,19 +142,19 @@ async function deleteStackIfBadStatus(client: CloudFormationClient, stackName: s
 
 (async (): Promise<void> => {
 
-    const region = stringOrFail(getInput("awsRegion"), "Missing awsRegion value");
+    const region = stringOrFail(core.getInput("awsRegion"), "Missing awsRegion value");
     const accessKeyId = stringOrFail(process.env.ACCESS_KEY_ID, "Missing ACCESS_KEY_ID value");
     const secretAccessKey = stringOrFail(process.env.SECRET_ACCESS_KEY, "Missing SECRET_ACCESS_KEY value");
 
-    const stackName = stringOrFail(getInput("stackName"), "Missing stackName input");
-    const timeoutSeconds = +getInput("timeoutSeconds");
+    const stackName = stringOrFail(core.getInput("stackName"), "Missing stackName input");
+    const timeoutSeconds = +core.getInput("timeoutSeconds");
     if (isNaN(timeoutSeconds)) {
-        setFailed("timeoutSeconds must be a number equal to 0 or greater.");
+        core.setFailed("timeoutSeconds must be a number equal to 0 or greater.");
         return;
     }
-    const templateFilePath = stringOrFail(getInput("templateFilePath"), "Missing templateFilePath input");
-    const tags = JsonUtils.toJSONArray(getMultilineInput("tags"), "Key", "Value", "=");
-    const parameters = JsonUtils.toJSONArray(getMultilineInput("parameterOverrides"), "ParameterKey", "ParameterValue", "=");
+    const templateFilePath = stringOrFail(core.getInput("templateFilePath"), "Missing templateFilePath input");
+    const tags = JsonUtils.toJSONArray(core.getMultilineInput("tags"), "Key", "Value", "=");
+    const parameters = JsonUtils.toJSONArray(core.getMultilineInput("parameterOverrides"), "ParameterKey", "ParameterValue", "=");
     const successStackStatuses = ["CREATE_COMPLETE", "ROLLBACK_COMPLETE", "UPDATE_COMPLETE"];
     const deleteOnStackStatuses = [
         // "CREATE_COMPLETE",
@@ -173,7 +173,7 @@ async function deleteStackIfBadStatus(client: CloudFormationClient, stackName: s
     try {
         currentStackStatus = await getStackStatus(client, stackName);
     } catch(e) {
-        setFailed(`Could not get status of stack ${stackName}`);
+        core.setFailed(`Could not get status of stack ${stackName}`);
         return;
     }
     let command: any;
@@ -191,11 +191,11 @@ async function deleteStackIfBadStatus(client: CloudFormationClient, stackName: s
         // stack is not in a successful status. Delete it before deploying.
         const deleteResult = await deleteStackIfBadStatus(client, stackName, timeoutSeconds, deleteOnStackStatuses);
         if (deleteResult.state === "Timeout") {
-            setFailed(`Timed out while deleting stack ${stackName}`);
+            core.setFailed(`Timed out while deleting stack ${stackName}`);
             return;
         }
         if (deleteResult.state === "Error") {
-            setFailed(`Errored while deleting stack ${stackName}: ${deleteResult.error}`);
+            core.setFailed(`Errored while deleting stack ${stackName}: ${deleteResult.error}`);
             return;
         }
     }
