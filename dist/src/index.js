@@ -165,8 +165,8 @@ async function deleteStackIfBadStatus(client, stackName, timeoutSeconds, succssf
         currentStackStatus = await getStackStatus(client, stackName);
     }
     catch (e) {
-        core.setFailed(`Could not get status of stack ${stackName}: ${e === null || e === void 0 ? void 0 : e.message}`);
-        return;
+        // core.setFailed(`Could not get status of stack ${stackName}: ${(e as Error)?.message}`);
+        // return;
     }
     let command;
     if (successStackStatuses.includes(currentStackStatus || "")) {
