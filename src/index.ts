@@ -173,7 +173,7 @@ async function deleteStackIfBadStatus(client: CloudFormationClient, stackName: s
     try {
         currentStackStatus = await getStackStatus(client, stackName);
     } catch(e) {
-        core.setFailed(`Could not get status of stack ${stackName}`);
+        core.setFailed(`Could not get status of stack ${stackName}: ${(e as Error)?.message}`);
         return;
     }
     let command: any;
