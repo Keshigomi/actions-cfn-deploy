@@ -1,4 +1,4 @@
-import core from "@actions/core";
+import * as core from "@actions/core";
 import { CloudFormationClient, CreateStackCommand, DeleteStackCommand, DescribeStacksCommand, DescribeStacksCommandOutput, Parameter, Tag, UpdateStackCommand } from "@aws-sdk/client-cloudformation";
 import { JsonUtils } from "./JsonUtils";
 
