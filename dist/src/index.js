@@ -55,8 +55,8 @@ async function getStackStatus(client, stackName) {
  */
 async function waitForStackStatus(client, stackName, timeoutSeconds, statusesToMatch) {
     const startMillis = Date.now();
+    let status = undefined;
     do {
-        let status = undefined;
         try {
             status = await getStackStatus(client, stackName);
         }
@@ -69,11 +69,11 @@ async function waitForStackStatus(client, stackName, timeoutSeconds, statusesToM
         // stack still exists, return current status if it matches
         if (statusesToMatch.some(s => s === status)) {
             // reached one of the requested statuses
-            return { state: "Success" };
+            return { state: "Success", currentStatus: status };
         }
     } while (timeoutSeconds === 0 || (Date.now() - startMillis <= (timeoutSeconds * 1000)));
     // reached timeout. return "timeout"
-    return { state: "Timeout" };
+    return { state: "Timeout", currentStatus: status };
 }
 async function deleteStackIfBadStatus(client, stackName, timeoutSeconds, succssfullyDeletedStatuses) {
     // const currentStatus = await waitForStackStatus(client, stackName, timeoutSeconds, statusesToMatch);
@@ -181,21 +181,25 @@ async function deleteStackIfBadStatus(client, stackName, timeoutSeconds, succssf
         currentStackStatus = await getStackStatus(client, stackName);
     }
     catch (e) {
-        // core.setFailed(`Could not get status of stack ${stackName}: ${(e as Error)?.message}`);
-        // return;
+        if (!(e instanceof client_cloudformation_1.CloudFormationServiceException)) {
+            core.setFailed(`Could not get status of stack ${stackName}: ${e === null || e === void 0 ? void 0 : e.message}`);
+            return;
+        }
     }
     let command;
     if (successStackStatuses.includes(currentStackStatus || "")) {
+        core.debug(`Stack has a success status of ${currentStackStatus}, creating UPDATE command`);
         // UPDATE
         command = new client_cloudformation_1.UpdateStackCommand({
             StackName: stackName,
             Capabilities: ["CAPABILITY_IAM"],
             TemplateBody: templateBody,
             Tags: tags,
-            Parameters: parameters // [{ParameterKey: "param1", ParameterValue: "value1"}]
+            Parameters: parameters
         });
     }
     else if (currentStackStatus) {
+        core.debug(`Stack is not in a success status: ${currentStackStatus} - deleting stack`);
         // stack is not in a successful status. Delete it before deploying.
         const deleteResult = await deleteStackIfBadStatus(client, stackName, timeoutSeconds, deleteOnStackStatuses);
         if (deleteResult.state === "Timeout") {
@@ -206,8 +210,10 @@ async function deleteStackIfBadStatus(client, stackName, timeoutSeconds, succssf
             core.setFailed(`Errored while deleting stack ${stackName}: ${deleteResult.error}`);
             return;
         }
+        core.debug("Stack deletion done");
     }
     if (!command) {
+        core.debug("No update command created yet, creating a CREATE command");
         // CREATE
         command = new client_cloudformation_1.CreateStackCommand({
             StackName: stackName,
@@ -217,9 +223,12 @@ async function deleteStackIfBadStatus(client, stackName, timeoutSeconds, succssf
             Parameters: parameters, // [{ParameterKey: "param1", ParameterValue: "value1"}]
         });
     }
+    core.debug("Sending command to CloudFormation");
     // ready to deploy
     await client.send(command);
-    await waitForStackStatus(client, stackName, timeoutSeconds, successStackStatuses);
+    core.debug("Waiting for a success stack status");
+    const result = await waitForStackStatus(client, stackName, timeoutSeconds, successStackStatuses);
+    core.debug(`Done waiting for stack, current status: ${result.currentStatus}`);
     // const stackIsFineResult = await waitForStackStatus(client, stackName, timeoutSeconds, successStatusesToMatch);
     // if (stackIsFineResult.state === "Timeout") {
     //     core.setFailed(`Timed out waiting for a success status on stack ${stackName}`);

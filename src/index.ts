@@ -1,5 +1,15 @@
 import * as core from "@actions/core";
-import { CloudFormationClient, CreateStackCommand, DeleteStackCommand, DescribeStacksCommand, DescribeStacksCommandOutput, Parameter, Tag, UpdateStackCommand } from "@aws-sdk/client-cloudformation";
+import {
+    CloudFormationClient,
+    CreateStackCommand,
+    DeleteStackCommand,
+    DescribeStacksCommand,
+    DescribeStacksCommandOutput,
+    Parameter,
+    Tag,
+    UpdateStackCommand,
+    CloudFormationServiceException
+} from "@aws-sdk/client-cloudformation";
 import { JsonUtils } from "./JsonUtils";
 import fs from "fs";
 
@@ -27,6 +37,7 @@ function stringOrFail(input: string|undefined, failedMessage?: string): string {
 
 interface IDeleteResult {
     state: "Success"|"Error"|"Timeout"|"StackNotFound";
+    currentStatus?: string,
     error?: string;
 }
 
@@ -49,10 +60,10 @@ async function waitForStackStatus(
     stackName: string,
     timeoutSeconds: number,
     statusesToMatch: string[]
-): Promise<IDeleteResult> {  //Promise<string|undefined|"timeout"> {
+): Promise<IDeleteResult> {
     const startMillis = Date.now();
+    let status: string | undefined = undefined;
     do {
-        let status: string | undefined = undefined;
         try {
             status = await getStackStatus(client, stackName);
         } catch (e) {
@@ -65,11 +76,11 @@ async function waitForStackStatus(
         // stack still exists, return current status if it matches
         if (statusesToMatch.some(s => s === status)) {
             // reached one of the requested statuses
-            return {state: "Success"};
+            return {state: "Success", currentStatus: status};
         }
     } while (timeoutSeconds === 0 || (Date.now() - startMillis <= (timeoutSeconds * 1000)));
     // reached timeout. return "timeout"
-    return {state: "Timeout"};
+    return {state: "Timeout", currentStatus: status};
 }
 
 async function deleteStackIfBadStatus(client: CloudFormationClient, stackName: string, timeoutSeconds: number, succssfullyDeletedStatuses: string[]): Promise<IDeleteResult> {
@@ -187,21 +198,25 @@ async function deleteStackIfBadStatus(client: CloudFormationClient, stackName: s
     try {
         currentStackStatus = await getStackStatus(client, stackName);
     } catch(e) {
-        // core.setFailed(`Could not get status of stack ${stackName}: ${(e as Error)?.message}`);
-        // return;
+        if (!(e instanceof CloudFormationServiceException)) {
+            core.setFailed(`Could not get status of stack ${stackName}: ${(e as Error)?.message}`);
+            return;
+        }
     }
     let command: any;
 
     if (successStackStatuses.includes(currentStackStatus || "")) {
+        core.debug(`Stack has a success status of ${currentStackStatus}, creating UPDATE command`);
         // UPDATE
         command = new UpdateStackCommand({
             StackName: stackName,
             Capabilities: ["CAPABILITY_IAM"],
             TemplateBody: templateBody,
-            Tags: tags as Tag[], // [{Key: "key1", Value: "value1"}]
-            Parameters: parameters as Parameter[] // [{ParameterKey: "param1", ParameterValue: "value1"}]
+            Tags: tags as Tag[],
+            Parameters: parameters as Parameter[]
         });
     } else if (currentStackStatus) {
+        core.debug(`Stack is not in a success status: ${currentStackStatus} - deleting stack`);
         // stack is not in a successful status. Delete it before deploying.
         const deleteResult = await deleteStackIfBadStatus(client, stackName, timeoutSeconds, deleteOnStackStatuses);
         if (deleteResult.state === "Timeout") {
@@ -212,8 +227,10 @@ async function deleteStackIfBadStatus(client: CloudFormationClient, stackName: s
             core.setFailed(`Errored while deleting stack ${stackName}: ${deleteResult.error}`);
             return;
         }
+        core.debug("Stack deletion done");
     }
     if (!command) {
+        core.debug("No update command created yet, creating a CREATE command");
         // CREATE
         command = new CreateStackCommand({
             StackName: stackName,
@@ -224,10 +241,13 @@ async function deleteStackIfBadStatus(client: CloudFormationClient, stackName: s
          });
     }
 
+    core.debug("Sending command to CloudFormation");
     // ready to deploy
     await client.send(command);
     
-    await waitForStackStatus(client, stackName, timeoutSeconds, successStackStatuses);
+    core.debug("Waiting for a success stack status");
+    const result = await waitForStackStatus(client, stackName, timeoutSeconds, successStackStatuses);
+    core.debug(`Done waiting for stack, current status: ${result.currentStatus}`);
 
 
 
