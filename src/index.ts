@@ -73,7 +73,7 @@ import { CfnUtils, IDeleteResult } from "./CfnUtils";
 // }
 
 (async (): Promise<void> => {
-    core.setFailed("testing fail");
+    // core.setFailed("testing fail");
     const region = VarUtils.stringOrFail(core.getInput("awsRegion"), "Missing awsRegion value");
     // const accessKeyId = stringOrFail(process.env.ACCESS_KEY_ID, "Missing ACCESS_KEY_ID value");
     // const secretAccessKey = stringOrFail(process.env.SECRET_ACCESS_KEY, "Missing SECRET_ACCESS_KEY value");
@@ -108,9 +108,9 @@ import { CfnUtils, IDeleteResult } from "./CfnUtils";
             templateBody = data;
         }
     });
-    if (!templateBody) {
-        return;
-    }
+    // if (!templateBody) {
+    //     return;
+    // }
 
     const client = new CloudFormationClient({ region/* , credentials: { accessKeyId, secretAccessKey } */});
 
