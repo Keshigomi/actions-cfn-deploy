@@ -5,6 +5,7 @@
     "main": "index.js",
     "scripts": {
         "test": "jest",
+        "test:coverage": "jest --coverage --collectCoverageFrom=src/**/*.ts",
         "clean": "rm -rf ./dist",
         "build": "npm run clean && tsc",
         "postbuild": "cp package.json dist/package.json && cp package-lock.json dist/package-lock.json && cd dist && npm ci --production"
