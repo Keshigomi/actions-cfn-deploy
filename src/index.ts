@@ -172,4 +172,7 @@ import { CfnUtils, IDeleteResult } from "./CfnUtils";
     core.debug("Waiting for a success stack status");
     const result = await cfnUtils.waitForStackStatus(timeoutSeconds, successStackStatuses);
     core.debug(`Done waiting for stack, current status: ${result.currentStatus}`);
+    if (result.currentStatus === "ROLLBACK_COMPLETE") {
+        core.setFailed("Could not create the stack");
+    }
 })();
