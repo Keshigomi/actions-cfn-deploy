@@ -153,6 +153,8 @@ const CfnUtils_1 = require("./CfnUtils");
         // stack did not exist or was deleted
         core.debug("Stack does not exist or was deleted, creating a CREATE command");
         // CREATE
+        core.debug(`Using tags: ${JSON.stringify(tags)}`);
+        core.debug(`Using parameters: ${JSON.stringify(parameters)}`);
         const createResult = await client.send(new client_cloudformation_1.CreateStackCommand({
             StackName: stackName,
             Capabilities: ["CAPABILITY_IAM"],
