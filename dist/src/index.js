@@ -84,6 +84,7 @@ const CfnUtils_1 = require("./CfnUtils");
 //     }
 // }
 (async () => {
+    core.setFailed("testing fail");
     const region = VarUtils_1.VarUtils.stringOrFail(core.getInput("awsRegion"), "Missing awsRegion value");
     // const accessKeyId = stringOrFail(process.env.ACCESS_KEY_ID, "Missing ACCESS_KEY_ID value");
     // const secretAccessKey = stringOrFail(process.env.SECRET_ACCESS_KEY, "Missing SECRET_ACCESS_KEY value");
@@ -132,7 +133,6 @@ const CfnUtils_1 = require("./CfnUtils");
         //     return;
         // }
     }
-    let command;
     let deleteResult;
     // if stack is in a "delete-before-proceeding" state, delete it
     if (deleteOnStackStatuses.includes(currentStackStatus || "")) {
@@ -153,29 +153,28 @@ const CfnUtils_1 = require("./CfnUtils");
         // stack did not exist or was deleted
         core.debug("Stack does not exist or was deleted, creating a CREATE command");
         // CREATE
-        command = new client_cloudformation_1.CreateStackCommand({
+        const createResult = await client.send(new client_cloudformation_1.CreateStackCommand({
             StackName: stackName,
             Capabilities: ["CAPABILITY_IAM"],
             TemplateBody: templateBody,
             Tags: tags,
             Parameters: parameters,
-        });
+        }));
+        core.info(`Created stack ${createResult.StackId}`);
     }
     else if (successStackStatuses.includes(currentStackStatus || "")) {
         // stack exists in a good state
         core.debug(`Stack has a success status of ${currentStackStatus}, creating UPDATE command`);
         // UPDATE
-        command = new client_cloudformation_1.UpdateStackCommand({
+        const updateResult = await client.send(new client_cloudformation_1.UpdateStackCommand({
             StackName: stackName,
             Capabilities: ["CAPABILITY_IAM"],
             TemplateBody: templateBody,
             Tags: tags,
             Parameters: parameters
-        });
+        }));
+        core.info(`Updated stack ${updateResult.StackId}`);
     }
-    core.debug("Sending command to CloudFormation");
-    // ready to deploy
-    await client.send(command);
     core.debug("Waiting for a success stack status");
     const result = await cfnUtils.waitForStackStatus(timeoutSeconds, successStackStatuses);
     core.debug(`Done waiting for stack, current status: ${result.currentStatus}`);
