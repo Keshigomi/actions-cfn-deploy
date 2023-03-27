@@ -84,7 +84,7 @@ const CfnUtils_1 = require("./CfnUtils");
 //     }
 // }
 (async () => {
-    core.setFailed("testing fail");
+    // core.setFailed("testing fail");
     const region = VarUtils_1.VarUtils.stringOrFail(core.getInput("awsRegion"), "Missing awsRegion value");
     // const accessKeyId = stringOrFail(process.env.ACCESS_KEY_ID, "Missing ACCESS_KEY_ID value");
     // const secretAccessKey = stringOrFail(process.env.SECRET_ACCESS_KEY, "Missing SECRET_ACCESS_KEY value");
@@ -118,9 +118,9 @@ const CfnUtils_1 = require("./CfnUtils");
             templateBody = data;
         }
     });
-    if (!templateBody) {
-        return;
-    }
+    // if (!templateBody) {
+    //     return;
+    // }
     const client = new client_cloudformation_1.CloudFormationClient({ region /* , credentials: { accessKeyId, secretAccessKey } */ });
     const cfnUtils = new CfnUtils_1.CfnUtils(client, stackName);
     let currentStackStatus;
