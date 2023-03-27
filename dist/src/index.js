@@ -97,13 +97,13 @@ const CfnUtils_1 = require("./CfnUtils");
     const templateFilePath = VarUtils_1.VarUtils.stringOrFail(core.getInput("templateFilePath"), "Missing templateFilePath input");
     const tags = JsonUtils_1.JsonUtils.toJSONArray(core.getMultilineInput("tags"), "Key", "Value", "=");
     const parameters = JsonUtils_1.JsonUtils.toJSONArray(core.getMultilineInput("parameterOverrides"), "ParameterKey", "ParameterValue", "=");
-    const successStackStatuses = ["CREATE_COMPLETE", "ROLLBACK_COMPLETE", "UPDATE_COMPLETE"];
+    const successStackStatuses = ["CREATE_COMPLETE", /* "ROLLBACK_COMPLETE", */ "UPDATE_COMPLETE"];
     const deleteOnStackStatuses = [
         // "CREATE_COMPLETE",
         "CREATE_FAILED",
         "DELETE_COMPLETE",
         "DELETE_FAILED",
-        // "ROLLBACK_COMPLETE",
+        "ROLLBACK_COMPLETE",
         "ROLLBACK_FAILED",
         // "UPDATE_COMPLETE",
         "UPDATE_ROLLBACK_COMPLETE",

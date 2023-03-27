@@ -87,13 +87,13 @@ import { CfnUtils, IDeleteResult } from "./CfnUtils";
     const templateFilePath = VarUtils.stringOrFail(core.getInput("templateFilePath"), "Missing templateFilePath input");
     const tags = JsonUtils.toJSONArray(core.getMultilineInput("tags"), "Key", "Value", "=");
     const parameters = JsonUtils.toJSONArray(core.getMultilineInput("parameterOverrides"), "ParameterKey", "ParameterValue", "=");
-    const successStackStatuses = ["CREATE_COMPLETE", "ROLLBACK_COMPLETE", "UPDATE_COMPLETE"];
+    const successStackStatuses = ["CREATE_COMPLETE", /* "ROLLBACK_COMPLETE", */ "UPDATE_COMPLETE"];
     const deleteOnStackStatuses = [
         // "CREATE_COMPLETE",
         "CREATE_FAILED",
         "DELETE_COMPLETE",
         "DELETE_FAILED",
-        // "ROLLBACK_COMPLETE",
+        "ROLLBACK_COMPLETE",
         "ROLLBACK_FAILED",
         // "UPDATE_COMPLETE",
         "UPDATE_ROLLBACK_COMPLETE",
