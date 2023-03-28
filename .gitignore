@@ -102,5 +102,16 @@ typings/
 # TernJS port file
 .tern-port
 
+
+# WebStorm
+.idea/**/workspace.xml
+.idea/**/tasks.xml
+.idea/**/usage.statistics.xml
+.idea/**/dictionaries
+.idea/**/shelf
+.idea/**/dataSources
+.idea/**/mongoSettings.xml
+.idea/**/httpRequests
+
 # custom changes for Github Actions
 !dist/node_modules

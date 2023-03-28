@@ -1,62 +1,61 @@
-name: 'CFN Deploy Stack'
-description: "Deploys a CloudFormation stack. Deletes the stack first, if it exists in a bad state."
+name: 'AWS CloudFormation "Deploy CloudFormation Stack" Action for GitHub Actions'
+description: "Deploys a AWS CloudFormation stack"
+branding:
+  icon: "cloud"
+  color: "orange"
 inputs:
-  stackName:
-    description: 'Name of the AWS CloudFormation stack to wait for a status on'
+  name:
+    description: "The name of the CloudFormation stack"
     required: true
-  templateFilePath:
-    description: 'The path to the CloudFormation template file'
-    required: true
-  awsRegion:
-    description: 'AWS Region where the stack is deployed to. Defaults to us-east-1.'
+  region:
+    description: "The region where to create the stack"
     required: true
     default: "us-east-1"
-  timeoutSeconds:
-    description: 'The timeout in seconds after which to stop waiting for the stack operation to complete. Defaults to 90.'
+  template:
+    description: "The path or URL to the CloudFormation template"
     required: true
-    default: "90"
+  capabilities:
+    description: "The comma-delimited list of stack template capabilities to acknowledge. Defaults to 'CAPABILITY_IAM'"
+    required: false
+    default: "CAPABILITY_IAM"
+  parameter-overrides:
+    description: 'The parameters to override in the stack inputs. You can pass a comma-delimited list or a file URL. Comma-delimited list has each entry formatted as <ParameterName>=<ParameterValue> or <ParameterName>="<ParameterValue>,<ParameterValue>". A JSON file can be a local file with a "file://" prefix or remote URL. The file should look like: [ { "ParameterKey": "KeyPairName", "ParameterValue": "MyKey" }]'
+    required: false
+  no-execute-changeset:
+    description: "Indicates whether to execute to the change set or have it reviewed. Default to '0' (will execute the change set)"
+    required: false
+    default: "0"
+  no-delete-failed-changeset:
+    description: "Indicates whether to delete to a failed change set. Default to '0' (will delete the failed changeset)"
+    required: false
+    default: "0"
+  no-fail-on-empty-changeset:
+    description: "If the CloudFormation change set is empty, do not fail. Defaults to '0' (will fail on empty change set)"
+    required: false
+    default: "0"
+  disable-rollback:
+    description: "Disable rollback of the stack if stack creation fails. Defaults to '0' (will rollback if stack creation fails). This input is only used for stack creation, not for stack update"
+    required: false
+    default: "0"
+  timeout-in-minutes:
+    description: "The amount of time that can pass before the stack status becomes CREATE_FAILED. This input is only used for stack creation, not for stack update"
+    required: false
+  notification-arns:
+    description: "The comma-delimited list of Amazon SNS topic ARNs to publish stack related events"
+    required: false
+  role-arn:
+    description: "The Amazon Resource Name (ARN) of an AWS Identity and Access Management (IAM) role that AWS CloudFormation assumes to create the stack. AWS CloudFormation uses the role's credentials to make calls on your behalf. AWS CloudFormation always uses this role for all future operations on the stack. As long as users have permission to operate on the stack, AWS CloudFormation uses this role even if the users don't have permission to pass it. Ensure that the role grants least privilege. If you don't specify a value, AWS CloudFormation uses the role that was previously associated with the stack"
+    required: false
   tags:
-    description: 'The tags to include. Should be a multi-line input with each key-pair on a new line, in the format like "Tag1=Value1"'
+    description: 'Key-value pairs to associate with this stack. This input should be JSON-formatted, for example [ { "Key": "string", "Value": "string" } ]'
     required: false
-  parameterOverrides:
-    description: 'The parameters to pass into the stack. Should be a multi-line input with each key-pair on a new line, in the format like "Param1=Value1"'
+  termination-protection:
+    description: "Whether to enable termination protection on the specified stack. Defaults to '0' (terminated protection will be disabled) This input is only used for stack creation, not for stack update"
     required: false
-
+    default: "0"
+outputs:
+  stack-id:
+    description: "The id of the deployed stack. In addition, any outputs declared in the deployed CloudFormation stack will also be set as outputs for the action, e.g. if the stack has a stack output named 'foo', this action will also have an output named 'foo'."
 runs:
-  using: 'node16'
-  main: 'dist/src/index.js'
-
-# TODO: add .github/workflows/build-deploy.yml and have it commit "dist" folder after transpile
-
-# runs:
-#   using: "composite"
-#   steps:
-#     - id: add-action-location-to-path
-#       run: |
-#         echo "${{ github.action_path }}" >> $GITHUB_PATH
-#       shell: bash
-
-#     - run: |
-#         # include CloudFormation bash helpers
-#         source cloud-formation-utils.sh
-
-#         # check if the stack exists
-#         cf_delete_if_bad_state "${{ inputs.stackName }}" "${{ inputs.awsRegion }}"
-
-#         echo Deploying CloudFormation template
-#         if ! aws cloudformation deploy --template-file "${{ inputs.templateFilePath}}" \
-#                 --region "${{ inputs.awsRegion }}"
-#                 --capabilities CAPABILITY_IAM \
-#                 --stack-name "${{ inputs.stackName }}" \
-#                 --tags "${{ inputs.tags }}"
-#                 --parameter-overrides "${{ inputs.parameterOverrides }}"
-#         then
-#           echo Deploy failed.
-#           cf_print_stack_events "${{ inputs.stackName }}"
-#           # return false to make sure the build stops
-#           false
-#         else
-#           cf_wait_final_status "${{ inputs.stackName }}"
-#           true
-#         fi
-#       shell: bash
+  using: "node16"
+  main: "dist/src/index.js"
