@@ -115,6 +115,9 @@ export class CfnHelper {
             throw e;
         }
     }
+    private async sleep(millis: number): Promise<void> {
+        return new Promise(r => setTimeout(r, millis));
+    }
 
     public async deployStack(
         params: CreateStackInput,
@@ -122,7 +125,34 @@ export class CfnHelper {
         noExecuteChangeSet: boolean,
         noDeleteFailedChangeSet: boolean
     ): Promise<string | undefined> {
-        const stack = await this.getStack(params.StackName);
+        const inProgressStates = [
+            "CREATE_IN_PROGRESS",
+            "ROLLBACK_IN_PROGRESS",
+            "DELETE_IN_PROGRESS",
+            "UPDATE_IN_PROGRESS",
+            "UPDATE_COMPLETE_CLEANUP_IN_PROGRESS"
+        ];
+        const nonUpdatableStates = [
+            "ROLLBACK_COMPLETE"
+        ];
+
+        let stack = await this.getStack(params.StackName);
+
+        // check if stack is in an in-progress status
+        if (stack?.StackStatus && inProgressStates.includes(stack.StackStatus)) {
+            // wait for a different stack status
+            let count = 0;
+            while (count < 40 && stack && inProgressStates.includes(stack.StackStatus)) {
+                count++;
+                await this.sleep(3000);
+                stack = await this.getStack(params.StackName);
+            }
+        }
+
+        if (stack?.StackStatus && nonUpdatableStates.includes(stack.StackStatus)) {
+            await this.cfn.deleteStack({StackName: stack.StackName}).promise();
+            stack = undefined;
+        }
 
         if (!stack) {
             core.debug("Creating CloudFormation Stack");
