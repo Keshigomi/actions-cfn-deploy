@@ -119,6 +119,18 @@ export class CfnHelper {
         return new Promise(r => setTimeout(r, millis));
     }
 
+    private async waitForStatus(stackName: string, statuses: string[]): Promise<Stack | undefined> {
+        let stack: Stack | undefined;
+        let count = 0;
+        do {
+            stack = await this.getStack(stackName);
+            count++;
+            await this.sleep(3000);
+        } while (count < 40 && stack && statuses.includes(stack.StackStatus));
+
+        return stack;
+    }
+
     public async deployStack(
         params: CreateStackInput,
         noEmptyChangeSet: boolean,
@@ -135,22 +147,49 @@ export class CfnHelper {
         const nonUpdatableStates = [
             "ROLLBACK_COMPLETE"
         ];
+        // const successStates = [
+        //     // "CREATE_IN_PROGRESS",
+        //     "CREATE_FAILED",
+        //     "CREATE_COMPLETE",
+        //     // "ROLLBACK_IN_PROGRESS",
+        //     "ROLLBACK_FAILED",
+        //     "ROLLBACK_COMPLETE",
+        //     // "DELETE_IN_PROGRESS",
+        //     "DELETE_FAILED",
+        //     "DELETE_COMPLETE",
+        //     // "UPDATE_IN_PROGRESS",
+        //     // "UPDATE_COMPLETE_CLEANUP_IN_PROGRESS",
+        //     "UPDATE_COMPLETE",
+        //     "UPDATE_FAILED",
+        //     "UPDATE_ROLLBACK_IN_PROGRESS",
+        //     "UPDATE_ROLLBACK_FAILED",
+        //     "UPDATE_ROLLBACK_COMPLETE_CLEANUP_IN_PROGRESS",
+        //     "UPDATE_ROLLBACK_COMPLETE",
+        //     "REVIEW_IN_PROGRESS",
+        //     "IMPORT_IN_PROGRESS",
+        //     "IMPORT_COMPLETE",
+        //     "IMPORT_ROLLBACK_IN_PROGRESS",
+        //     "IMPORT_ROLLBACK_FAILED",
+        //     "IMPORT_ROLLBACK_COMPLETE"
+        // ];
 
         let stack = await this.getStack(params.StackName);
 
         // check if stack is in an in-progress status
         if (stack?.StackStatus && inProgressStates.includes(stack.StackStatus)) {
             // wait for a different stack status
-            let count = 0;
-            while (count < 40 && stack && inProgressStates.includes(stack.StackStatus)) {
-                count++;
-                await this.sleep(3000);
-                stack = await this.getStack(params.StackName);
-            }
+            stack = await this.waitForStatus(params.StackName, inProgressStates);
+            // let count = 0;
+            // while (count < 40 && stack && inProgressStates.includes(stack.StackStatus)) {
+            //     count++;
+            //     await this.sleep(3000);
+            //     stack = await this.getStack(params.StackName);
+            // }
         }
 
         if (stack?.StackStatus && nonUpdatableStates.includes(stack.StackStatus)) {
             await this.cfn.deleteStack({StackName: stack.StackName}).promise();
+            await this.waitForStatus(params.StackName, ["DELETE_COMPLETE"]);
             stack = undefined;
         }
 
