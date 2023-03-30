@@ -28,18 +28,8 @@ const path = __importStar(require("path"));
 const core = __importStar(require("@actions/core"));
 const aws = __importStar(require("aws-sdk"));
 const fs = __importStar(require("fs"));
-// import { deployStack, getStackOutputs } from "./deploy";
-const Utils_1 = require("./Utils");
+const ActionUtils_1 = require("./ActionUtils");
 const CfnHelper_1 = require("./CfnHelper");
-// export type CreateChangeSetInput = aws.CloudFormation.Types.CreateChangeSetInput
-// export type InputNoFailOnEmptyChanges = "1" | "0"
-// export type InputCapabilities =
-//     | "CAPABILITY_IAM"
-//     | "CAPABILITY_NAMED_IAM"
-//     | "CAPABILITY_AUTO_EXPAND"
-// export type Inputs = {
-//     [key: string]: string;
-// }
 // The custom client configuration for the CloudFormation clients.
 const clientConfiguration = {
     customUserAgent: "keshigomi-actions-cfn-deploy"
@@ -68,16 +58,16 @@ async function run() {
         const disableRollback = !!+core.getInput("disable-rollback", {
             required: false
         });
-        const timeoutInMinutes = (0, Utils_1.parseNumber)(core.getInput("timeout-in-minutes", {
+        const timeoutInMinutes = ActionUtils_1.ActionUtils.parseNumber(core.getInput("timeout-in-minutes", {
             required: false
         }));
-        const notificationARNs = (0, Utils_1.parseARNs)(core.getInput("notification-arns", {
+        const notificationARNs = ActionUtils_1.ActionUtils.parseARNs(core.getInput("notification-arns", {
             required: false
         }));
-        const roleARN = (0, Utils_1.parseString)(core.getInput("role-arn", {
+        const roleARN = ActionUtils_1.ActionUtils.parseString(core.getInput("role-arn", {
             required: false
         }));
-        const tags = (0, Utils_1.parseTags)(core.getInput("tags", {
+        const tags = ActionUtils_1.ActionUtils.parseTags(core.getInput("tags", {
             required: false
         }));
         const terminationProtections = !!+core.getInput("termination-protection", {
@@ -86,7 +76,7 @@ async function run() {
         // Setup CloudFormation Stack
         let templateBody;
         let templateUrl;
-        if ((0, Utils_1.isUrl)(template)) {
+        if (ActionUtils_1.ActionUtils.isHttpsUrl(template)) {
             core.debug("Using CloudFormation Stack from Amazon S3 Bucket");
             templateUrl = template;
         }
@@ -114,7 +104,7 @@ async function run() {
             EnableTerminationProtection: terminationProtections
         };
         if (parameterOverrides) {
-            params.Parameters = (0, Utils_1.parseParameters)(parameterOverrides.trim());
+            params.Parameters = ActionUtils_1.ActionUtils.parseParameters(parameterOverrides.trim());
         }
         const stackId = await cfnHelper.deployStack(params, noEmptyChangeSet, noExecuteChangeSet, noDeleteFailedChangeSet);
         core.setOutput("stack-id", stackId || "UNKNOWN");
@@ -134,7 +124,3 @@ async function run() {
 }
 exports.run = run;
 (async () => await run())();
-// /* istanbul ignore next */
-// if (require.main === module) {
-//     run();
-// }
