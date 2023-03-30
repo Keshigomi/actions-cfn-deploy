@@ -9,8 +9,6 @@ on:
       - 'bugfix/**'
       - 'hotfix/**'
       - main
-    tags:
-      - v*
 
 jobs:
   build:
