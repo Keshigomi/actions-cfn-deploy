@@ -37,5 +37,5 @@ jobs:
           git config --global user.email "automated@githubactions.com"
           git config --global user.name "Build-Agent"
           git add -A
-          git commit -m --allow-empty "Built the pushed change [no ci]"
+          git commit --allow-empty -m "Built the pushed change [no ci]"
           git push
