@@ -1,0 +1,43 @@
+name: Build and deploy
+
+on:
+  workflow_dispatch:
+
+  push:
+    branches:
+      - 'feature/**'
+      - 'bugfix/**'
+      - 'hotfix/**'
+      - main
+    tags:
+      - v*
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        if: ${{ !startsWith(github.ref, 'refs/tags/') }}
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: NPM Install
+        run: |
+          npm ci
+
+      - name: NPM Install
+        run: |
+          npm run build
+
+      - name: NPM Install
+        run: |
+          npm run test:coverage
+
+      - name: Update dist
+        run: |
+          git config --global user.email "automated@githubactions.com"
+          git config --global user.name "Build-Agent"
+          git add -A
+          git commit -m "Built the pushed change [no ci]"
+          git push

@@ -2,28 +2,10 @@ import * as path from "path";
 import * as core from "@actions/core";
 import * as aws from "aws-sdk";
 import * as fs from "fs";
-// import { deployStack, getStackOutputs } from "./deploy";
-import {
-    isUrl,
-    parseTags,
-    parseString,
-    parseNumber,
-    parseARNs,
-    parseParameters
-} from "./Utils";
+import {ActionUtils} from "./ActionUtils";
 import {CfnHelper} from "./CfnHelper";
 
 export type CreateStackInput = aws.CloudFormation.Types.CreateStackInput
-// export type CreateChangeSetInput = aws.CloudFormation.Types.CreateChangeSetInput
-// export type InputNoFailOnEmptyChanges = "1" | "0"
-// export type InputCapabilities =
-//     | "CAPABILITY_IAM"
-//     | "CAPABILITY_NAMED_IAM"
-//     | "CAPABILITY_AUTO_EXPAND"
-
-// export type Inputs = {
-//     [key: string]: string;
-// }
 
 // The custom client configuration for the CloudFormation clients.
 const clientConfiguration = {
@@ -58,22 +40,22 @@ export async function run(): Promise<void> {
         const disableRollback = !!+core.getInput("disable-rollback", {
             required: false
         });
-        const timeoutInMinutes = parseNumber(
+        const timeoutInMinutes = ActionUtils.parseNumber(
             core.getInput("timeout-in-minutes", {
                 required: false
             })
         );
-        const notificationARNs = parseARNs(
+        const notificationARNs = ActionUtils.parseARNs(
             core.getInput("notification-arns", {
                 required: false
             })
         );
-        const roleARN = parseString(
+        const roleARN = ActionUtils.parseString(
             core.getInput("role-arn", {
                 required: false
             })
         );
-        const tags = parseTags(
+        const tags = ActionUtils.parseTags(
             core.getInput("tags", {
                 required: false
             })
@@ -86,7 +68,7 @@ export async function run(): Promise<void> {
         let templateBody;
         let templateUrl;
 
-        if (isUrl(template)) {
+        if (ActionUtils.isHttpsUrl(template)) {
             core.debug("Using CloudFormation Stack from Amazon S3 Bucket");
             templateUrl = template;
         } else {
@@ -117,7 +99,7 @@ export async function run(): Promise<void> {
         };
 
         if (parameterOverrides) {
-            params.Parameters = parseParameters(parameterOverrides.trim());
+            params.Parameters = ActionUtils.parseParameters(parameterOverrides.trim());
         }
 
         const stackId = await cfnHelper.deployStack(
@@ -143,7 +125,3 @@ export async function run(): Promise<void> {
 }
 
 (async (): Promise<void> => await run())();
-// /* istanbul ignore next */
-// if (require.main === module) {
-//     run();
-// }

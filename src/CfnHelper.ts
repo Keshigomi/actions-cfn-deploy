@@ -1,6 +1,5 @@
 import * as core from "@actions/core";
 import * as aws from "aws-sdk";
-// import { CreateChangeSetInput, CreateStackInput } from "./main";
 
 type Stack = aws.CloudFormation.Stack;
 type CreateStackInput = aws.CloudFormation.Types.CreateStackInput;
@@ -12,7 +11,82 @@ export class CfnHelper {
         this.cfn = cfn;
     }
 
-    public async cleanupChangeSet(
+    public async deployStack(
+        params: CreateStackInput,
+        noEmptyChangeSet: boolean,
+        noExecuteChangeSet: boolean,
+        noDeleteFailedChangeSet: boolean
+    ): Promise<string | undefined> {
+        const inProgressStates = [
+            "CREATE_IN_PROGRESS",
+            "ROLLBACK_IN_PROGRESS",
+            "DELETE_IN_PROGRESS",
+            "UPDATE_IN_PROGRESS",
+            "UPDATE_COMPLETE_CLEANUP_IN_PROGRESS"
+        ];
+        const nonUpdatableStates = [
+            "ROLLBACK_COMPLETE"
+        ];
+        
+        let stack = await this.getStack(params.StackName);
+
+        // check if stack is in an in-progress status
+        if (stack?.StackStatus && inProgressStates.includes(stack.StackStatus)) {
+            // wait for a different stack status
+            //TODO: should this be using "successStates" instead of "inProgressStates"?
+            stack = await this.waitForStatus(params.StackName, inProgressStates);
+        }
+
+        if (stack?.StackStatus && nonUpdatableStates.includes(stack.StackStatus)) {
+            await this.cfn.deleteStack({StackName: stack.StackName}).promise();
+            await this.waitForStatus(params.StackName, ["DELETE_COMPLETE"]);
+            stack = undefined;
+        }
+
+        if (!stack) {
+            core.debug("Creating CloudFormation Stack");
+
+            const stack = await this.cfn.createStack(params).promise();
+            await this.cfn.waitFor("stackCreateComplete", {StackName: params.StackName}).promise();
+
+            return stack.StackId;
+        }
+
+        return await this.updateStack(stack, {
+                ChangeSetName: `${params.StackName}-CS`,
+                StackName: params.StackName,
+                TemplateBody: params.TemplateBody,
+                TemplateURL: params.TemplateURL,
+                Parameters: params.Parameters,
+                Capabilities: params.Capabilities,
+                ResourceTypes: params.ResourceTypes,
+                RoleARN: params.RoleARN,
+                RollbackConfiguration: params.RollbackConfiguration,
+                NotificationARNs: params.NotificationARNs,
+                Tags: params.Tags
+            },
+            noEmptyChangeSet,
+            noExecuteChangeSet,
+            noDeleteFailedChangeSet
+        );
+    }
+
+    public async getStackOutputs(stackName: string): Promise<Map<string, string>> {
+        const outputs = new Map<string, string>();
+        const stack = await this.getStack(stackName);
+
+        if (stack && stack.Outputs) {
+            for (const output of stack.Outputs) {
+                if (output.OutputKey && output.OutputValue) {
+                    outputs.set(output.OutputKey, output.OutputValue);
+                }
+            }
+        }
+
+        return outputs;
+    }
+
+    private async cleanupChangeSet(
         stack: Stack,
         params: CreateChangeSetInput,
         noEmptyChangeSet: boolean,
@@ -41,12 +115,8 @@ export class CfnHelper {
                 .promise();
             }
 
-            if (
-                noEmptyChangeSet &&
-                knownErrorMessages.some(err =>
-                    changeSetStatus.StatusReason?.includes(err)
-                )
-            ) {
+            if (noEmptyChangeSet && knownErrorMessages.some(err =>
+                changeSetStatus.StatusReason?.includes(err))) {
                 return stack.StackId;
             }
 
@@ -100,10 +170,10 @@ export class CfnHelper {
         return stack.StackId;
     }
 
-    private async getStack(stackNameOrId: string): Promise<Stack | undefined> {
+    private async getStack(stackName: string): Promise<Stack | undefined> {
         try {
             const stacks = await this.cfn.describeStacks({
-                StackName: stackNameOrId
+                StackName: stackName
             })
             .promise();
             return stacks.Stacks?.[0];
@@ -129,110 +199,5 @@ export class CfnHelper {
         } while (count < 40 && stack && statuses.includes(stack.StackStatus));
 
         return stack;
-    }
-
-    public async deployStack(
-        params: CreateStackInput,
-        noEmptyChangeSet: boolean,
-        noExecuteChangeSet: boolean,
-        noDeleteFailedChangeSet: boolean
-    ): Promise<string | undefined> {
-        const inProgressStates = [
-            "CREATE_IN_PROGRESS",
-            "ROLLBACK_IN_PROGRESS",
-            "DELETE_IN_PROGRESS",
-            "UPDATE_IN_PROGRESS",
-            "UPDATE_COMPLETE_CLEANUP_IN_PROGRESS"
-        ];
-        const nonUpdatableStates = [
-            "ROLLBACK_COMPLETE"
-        ];
-        // const successStates = [
-        //     // "CREATE_IN_PROGRESS",
-        //     "CREATE_FAILED",
-        //     "CREATE_COMPLETE",
-        //     // "ROLLBACK_IN_PROGRESS",
-        //     "ROLLBACK_FAILED",
-        //     "ROLLBACK_COMPLETE",
-        //     // "DELETE_IN_PROGRESS",
-        //     "DELETE_FAILED",
-        //     "DELETE_COMPLETE",
-        //     // "UPDATE_IN_PROGRESS",
-        //     // "UPDATE_COMPLETE_CLEANUP_IN_PROGRESS",
-        //     "UPDATE_COMPLETE",
-        //     "UPDATE_FAILED",
-        //     "UPDATE_ROLLBACK_IN_PROGRESS",
-        //     "UPDATE_ROLLBACK_FAILED",
-        //     "UPDATE_ROLLBACK_COMPLETE_CLEANUP_IN_PROGRESS",
-        //     "UPDATE_ROLLBACK_COMPLETE",
-        //     "REVIEW_IN_PROGRESS",
-        //     "IMPORT_IN_PROGRESS",
-        //     "IMPORT_COMPLETE",
-        //     "IMPORT_ROLLBACK_IN_PROGRESS",
-        //     "IMPORT_ROLLBACK_FAILED",
-        //     "IMPORT_ROLLBACK_COMPLETE"
-        // ];
-
-        let stack = await this.getStack(params.StackName);
-
-        // check if stack is in an in-progress status
-        if (stack?.StackStatus && inProgressStates.includes(stack.StackStatus)) {
-            // wait for a different stack status
-            stack = await this.waitForStatus(params.StackName, inProgressStates);
-            // let count = 0;
-            // while (count < 40 && stack && inProgressStates.includes(stack.StackStatus)) {
-            //     count++;
-            //     await this.sleep(3000);
-            //     stack = await this.getStack(params.StackName);
-            // }
-        }
-
-        if (stack?.StackStatus && nonUpdatableStates.includes(stack.StackStatus)) {
-            await this.cfn.deleteStack({StackName: stack.StackName}).promise();
-            await this.waitForStatus(params.StackName, ["DELETE_COMPLETE"]);
-            stack = undefined;
-        }
-
-        if (!stack) {
-            core.debug("Creating CloudFormation Stack");
-
-            const stack = await this.cfn.createStack(params).promise();
-            await this.cfn.waitFor("stackCreateComplete", {StackName: params.StackName}).promise();
-
-            return stack.StackId;
-        }
-
-        return await this.updateStack(stack, {
-                ChangeSetName: `${params.StackName}-CS`,
-                StackName: params.StackName,
-                TemplateBody: params.TemplateBody,
-                TemplateURL: params.TemplateURL,
-                Parameters: params.Parameters,
-                Capabilities: params.Capabilities,
-                ResourceTypes: params.ResourceTypes,
-                RoleARN: params.RoleARN,
-                RollbackConfiguration: params.RollbackConfiguration,
-                NotificationARNs: params.NotificationARNs,
-                Tags: params.Tags
-            },
-            noEmptyChangeSet,
-            noExecuteChangeSet,
-            noDeleteFailedChangeSet
-        );
-    }
-
-    public async getStackOutputs(stackId: string): Promise<Map<string, string>> {
-        const outputs = new Map<string, string>();
-        const stack = await this.getStack(stackId);
-
-        if (stack && stack.Outputs) {
-            for (const output of stack.Outputs) {
-                if (output.OutputKey && output.OutputValue) {
-                    outputs.set(output.OutputKey, output.OutputValue);
-                }
-            }
-        }
-
-        return outputs;
     }
 }
