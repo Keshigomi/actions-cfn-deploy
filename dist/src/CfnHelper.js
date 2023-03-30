@@ -29,6 +29,61 @@ class CfnHelper {
     constructor(cfn) {
         this.cfn = cfn;
     }
+    async deployStack(params, noEmptyChangeSet, noExecuteChangeSet, noDeleteFailedChangeSet) {
+        const inProgressStates = [
+            "CREATE_IN_PROGRESS",
+            "ROLLBACK_IN_PROGRESS",
+            "DELETE_IN_PROGRESS",
+            "UPDATE_IN_PROGRESS",
+            "UPDATE_COMPLETE_CLEANUP_IN_PROGRESS"
+        ];
+        const nonUpdatableStates = [
+            "ROLLBACK_COMPLETE"
+        ];
+        let stack = await this.getStack(params.StackName);
+        // check if stack is in an in-progress status
+        if ((stack === null || stack === void 0 ? void 0 : stack.StackStatus) && inProgressStates.includes(stack.StackStatus)) {
+            // wait for a different stack status
+            //TODO: should this be using "successStates" instead of "inProgressStates"?
+            stack = await this.waitForStatus(params.StackName, inProgressStates);
+        }
+        if ((stack === null || stack === void 0 ? void 0 : stack.StackStatus) && nonUpdatableStates.includes(stack.StackStatus)) {
+            await this.cfn.deleteStack({ StackName: stack.StackName }).promise();
+            await this.waitForStatus(params.StackName, ["DELETE_COMPLETE"]);
+            stack = undefined;
+        }
+        if (!stack) {
+            core.debug("Creating CloudFormation Stack");
+            const stack = await this.cfn.createStack(params).promise();
+            await this.cfn.waitFor("stackCreateComplete", { StackName: params.StackName }).promise();
+            return stack.StackId;
+        }
+        return await this.updateStack(stack, {
+            ChangeSetName: `${params.StackName}-CS`,
+            StackName: params.StackName,
+            TemplateBody: params.TemplateBody,
+            TemplateURL: params.TemplateURL,
+            Parameters: params.Parameters,
+            Capabilities: params.Capabilities,
+            ResourceTypes: params.ResourceTypes,
+            RoleARN: params.RoleARN,
+            RollbackConfiguration: params.RollbackConfiguration,
+            NotificationARNs: params.NotificationARNs,
+            Tags: params.Tags
+        }, noEmptyChangeSet, noExecuteChangeSet, noDeleteFailedChangeSet);
+    }
+    async getStackOutputs(stackName) {
+        const outputs = new Map();
+        const stack = await this.getStack(stackName);
+        if (stack && stack.Outputs) {
+            for (const output of stack.Outputs) {
+                if (output.OutputKey && output.OutputValue) {
+                    outputs.set(output.OutputKey, output.OutputValue);
+                }
+            }
+        }
+        return outputs;
+    }
     async cleanupChangeSet(stack, params, noEmptyChangeSet, noDeleteFailedChangeSet) {
         const knownErrorMessages = [
             "No updates are to be performed",
@@ -49,8 +104,7 @@ class CfnHelper {
                 })
                     .promise();
             }
-            if (noEmptyChangeSet &&
-                knownErrorMessages.some(err => { var _a; return (_a = changeSetStatus.StatusReason) === null || _a === void 0 ? void 0 : _a.includes(err); })) {
+            if (noEmptyChangeSet && knownErrorMessages.some(err => { var _a; return (_a = changeSetStatus.StatusReason) === null || _a === void 0 ? void 0 : _a.includes(err); })) {
                 return stack.StackId;
             }
             throw new Error(`Failed to create Change Set: ${changeSetStatus.StatusReason}`);
@@ -84,11 +138,11 @@ class CfnHelper {
         await this.cfn.waitFor("stackUpdateComplete", { StackName: stack.StackId }).promise();
         return stack.StackId;
     }
-    async getStack(stackNameOrId) {
+    async getStack(stackName) {
         var _a;
         try {
             const stacks = await this.cfn.describeStacks({
-                StackName: stackNameOrId
+                StackName: stackName
             })
                 .promise();
             return (_a = stacks.Stacks) === null || _a === void 0 ? void 0 : _a[0];
@@ -113,91 +167,6 @@ class CfnHelper {
             await this.sleep(3000);
         } while (count < 40 && stack && statuses.includes(stack.StackStatus));
         return stack;
-    }
-    async deployStack(params, noEmptyChangeSet, noExecuteChangeSet, noDeleteFailedChangeSet) {
-        const inProgressStates = [
-            "CREATE_IN_PROGRESS",
-            "ROLLBACK_IN_PROGRESS",
-            "DELETE_IN_PROGRESS",
-            "UPDATE_IN_PROGRESS",
-            "UPDATE_COMPLETE_CLEANUP_IN_PROGRESS"
-        ];
-        const nonUpdatableStates = [
-            "ROLLBACK_COMPLETE"
-        ];
-        // const successStates = [
-        //     // "CREATE_IN_PROGRESS",
-        //     "CREATE_FAILED",
-        //     "CREATE_COMPLETE",
-        //     // "ROLLBACK_IN_PROGRESS",
-        //     "ROLLBACK_FAILED",
-        //     "ROLLBACK_COMPLETE",
-        //     // "DELETE_IN_PROGRESS",
-        //     "DELETE_FAILED",
-        //     "DELETE_COMPLETE",
-        //     // "UPDATE_IN_PROGRESS",
-        //     // "UPDATE_COMPLETE_CLEANUP_IN_PROGRESS",
-        //     "UPDATE_COMPLETE",
-        //     "UPDATE_FAILED",
-        //     "UPDATE_ROLLBACK_IN_PROGRESS",
-        //     "UPDATE_ROLLBACK_FAILED",
-        //     "UPDATE_ROLLBACK_COMPLETE_CLEANUP_IN_PROGRESS",
-        //     "UPDATE_ROLLBACK_COMPLETE",
-        //     "REVIEW_IN_PROGRESS",
-        //     "IMPORT_IN_PROGRESS",
-        //     "IMPORT_COMPLETE",
-        //     "IMPORT_ROLLBACK_IN_PROGRESS",
-        //     "IMPORT_ROLLBACK_FAILED",
-        //     "IMPORT_ROLLBACK_COMPLETE"
-        // ];
-        let stack = await this.getStack(params.StackName);
-        // check if stack is in an in-progress status
-        if ((stack === null || stack === void 0 ? void 0 : stack.StackStatus) && inProgressStates.includes(stack.StackStatus)) {
-            // wait for a different stack status
-            stack = await this.waitForStatus(params.StackName, inProgressStates);
-            // let count = 0;
-            // while (count < 40 && stack && inProgressStates.includes(stack.StackStatus)) {
-            //     count++;
-            //     await this.sleep(3000);
-            //     stack = await this.getStack(params.StackName);
-            // }
-        }
-        if ((stack === null || stack === void 0 ? void 0 : stack.StackStatus) && nonUpdatableStates.includes(stack.StackStatus)) {
-            await this.cfn.deleteStack({ StackName: stack.StackName }).promise();
-            await this.waitForStatus(params.StackName, ["DELETE_COMPLETE"]);
-            stack = undefined;
-        }
-        if (!stack) {
-            core.debug("Creating CloudFormation Stack");
-            const stack = await this.cfn.createStack(params).promise();
-            await this.cfn.waitFor("stackCreateComplete", { StackName: params.StackName }).promise();
-            return stack.StackId;
-        }
-        return await this.updateStack(stack, {
-            ChangeSetName: `${params.StackName}-CS`,
-            StackName: params.StackName,
-            TemplateBody: params.TemplateBody,
-            TemplateURL: params.TemplateURL,
-            Parameters: params.Parameters,
-            Capabilities: params.Capabilities,
-            ResourceTypes: params.ResourceTypes,
-            RoleARN: params.RoleARN,
-            RollbackConfiguration: params.RollbackConfiguration,
-            NotificationARNs: params.NotificationARNs,
-            Tags: params.Tags
-        }, noEmptyChangeSet, noExecuteChangeSet, noDeleteFailedChangeSet);
-    }
-    async getStackOutputs(stackId) {
-        const outputs = new Map();
-        const stack = await this.getStack(stackId);
-        if (stack && stack.Outputs) {
-            for (const output of stack.Outputs) {
-                if (output.OutputKey && output.OutputValue) {
-                    outputs.set(output.OutputKey, output.OutputValue);
-                }
-            }
-        }
-        return outputs;
     }
 }
 exports.CfnHelper = CfnHelper;
